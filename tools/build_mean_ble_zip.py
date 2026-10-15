@@ -14,8 +14,8 @@ def build_zip(root: Path, *, public: bool, mode: str = "bundle",
     files["empirical_mean/__init__.py"] = b""
     files["ble/__init__.py"] = b""
     for name, value in ble_files(root, public=public, mode=mode, repo_id=repo_id).items():
-        # Dependency declarations and prefetch instructions belong at ZIP root.
-        files[name if name in {"requirements.txt", "models.txt"} else "ble/" + name] = value
+        # License, dependency declarations, and prefetch instructions belong at ZIP root.
+        files[name if name in {"LICENSE", "requirements.txt", "models.txt"} else "ble/" + name] = value
     suffix = "public" if public else "submission"
     output = output or root / "dist" / f"empirical_mean_ble_acquisition_{suffix}.zip"
     return write_archive(files, output)

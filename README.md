@@ -90,3 +90,10 @@ manual review is still needed to establish the provenance of example data.
 git diff --cached
 python tools/check_public_source.py
 ```
+
+## License
+
+The source code and documentation are licensed under the [MIT License](LICENSE).
+Downloaded datasets, benchmark content, and embeddings retain their upstream
+licenses and attribution requirements, including when bundled in submission
+archives. Third-party dependencies retain their own licenses.

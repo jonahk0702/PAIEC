@@ -15,6 +15,10 @@ class PublicPackagingTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        shutil.copyfile(
+            Path(__file__).resolve().parents[1] / "LICENSE",
+            self.root / "LICENSE",
+        )
         (self.root / "tools").mkdir()
         shutil.copyfile(
             Path(__file__).with_name("build_zip.sh"),
@@ -60,6 +64,7 @@ class PublicPackagingTests(unittest.TestCase):
         result = self.build("--public", "bundle")
         self.assertEqual(result.returncode, 0, result.stderr)
         with ZipFile(self.root / "dist/ble_public.zip") as archive:
+            self.assertEqual(archive.read("LICENSE"), (self.root / "LICENSE").read_bytes())
             self.assertEqual(
                 json.loads(archive.read("submission_config.json")), self.example
             )
@@ -74,6 +79,7 @@ class PublicPackagingTests(unittest.TestCase):
         result = self.build("--private", "bundle")
         self.assertEqual(result.returncode, 0, result.stderr)
         with ZipFile(self.root / "dist/ble_submission.zip") as archive:
+            self.assertEqual(archive.read("LICENSE"), (self.root / "LICENSE").read_bytes())
             self.assertEqual(
                 json.loads(archive.read("submission_config.json")), self.private
             )
@@ -94,6 +100,7 @@ class PublicPackagingTests(unittest.TestCase):
         result = self.build("--public", "hf", "example/public-payload")
         self.assertEqual(result.returncode, 0, result.stderr)
         with ZipFile(self.root / "dist/ble_public.zip") as archive:
+            self.assertEqual(archive.read("LICENSE"), (self.root / "LICENSE").read_bytes())
             config = json.loads(archive.read("submission_config.json"))
             self.assertEqual(config["api_keys"], self.example["api_keys"])
             self.assertEqual(config["hf_data_repo"], "example/public-payload")

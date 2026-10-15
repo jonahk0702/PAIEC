@@ -39,6 +39,7 @@ def ble_files(root: Path, *, public: bool, mode: str, repo_id: str | None = None
     names += [str(p.relative_to(source)) for d in ("src", "comp_pipeline")
               for p in (source / d).rglob("*.py") if "__pycache__" not in p.parts]
     files = {name: source_file(source, name) for name in names}
+    files["LICENSE"] = source_file(root, "LICENSE")
     config_name = "submission_config.example.json" if public else "submission_config.json"
     config = json.loads(source_file(source, config_name).read_text())
     if public and any(config.get("api_keys", {}).values()):

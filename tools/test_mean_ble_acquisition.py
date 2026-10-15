@@ -66,6 +66,7 @@ class PackagedBaselineTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        shutil.copyfile(ROOT / "LICENSE", self.root / "LICENSE")
         for directory in ("empirical_mean_ble_acquisition", "empirical_mean"):
             shutil.copytree(ROOT / directory, self.root / directory,
                             ignore=shutil.ignore_patterns("__pycache__"))
@@ -94,6 +95,8 @@ class PackagedBaselineTests(unittest.TestCase):
         path = build_zip(self.root, public=True)
         extracted = self.root / "extracted"
         with ZipFile(path) as archive:
+            self.assertEqual(archive.read("LICENSE"), (ROOT / "LICENSE").read_bytes())
+            self.assertNotIn("ble/LICENSE", archive.namelist())
             config = json.loads(archive.read("ble/submission_config.json"))
             self.assertFalse(any(config["api_keys"].values()))
             self.assertIn("ble/data/corpus_manifest.json", archive.namelist())
@@ -146,6 +149,7 @@ print("Isolated archive: mean-only evaluation, nested BLE acquisition, and publi
     def test_private_build_is_explicit_and_hf_declaration_stays_at_root(self):
         public = build_zip(self.root, public=True, mode="hf", repo_id="example/public-payload")
         with ZipFile(public) as archive:
+            self.assertEqual(archive.read("LICENSE"), (ROOT / "LICENSE").read_bytes())
             self.assertIn("models.txt", archive.namelist())
             self.assertNotIn("ble/models.txt", archive.namelist())
             self.assertEqual(json.loads(archive.read("ble/submission_config.json"))["hf_data_repo"],
@@ -153,6 +157,7 @@ print("Isolated archive: mean-only evaluation, nested BLE acquisition, and publi
         private = build_zip(self.root, public=False)
         self.assertNotEqual(public, private)
         with ZipFile(private) as archive:
+            self.assertEqual(archive.read("LICENSE"), (ROOT / "LICENSE").read_bytes())
             self.assertEqual(json.loads(archive.read("ble/submission_config.json"))["api_keys"]["OPENAI_API_KEY"],
                              self.private_marker)
 

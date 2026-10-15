@@ -59,12 +59,14 @@ class MeanBaselineTests(unittest.TestCase):
             self.predict(self.target, [self.observation(float("nan"))])
 
     def test_zip_imports_independently_with_no_payload_or_acquisition_hook(self):
+        license_bytes = (Path(__file__).resolve().parents[1] / "LICENSE").read_bytes()
         with tempfile.TemporaryDirectory() as directory:
             path = build_zip(Path(directory) / "mean.zip")
             first = path.read_bytes()
             self.assertEqual(build_zip(path).read_bytes(), first)
             with ZipFile(path) as archive:
-                self.assertEqual(set(archive.namelist()), {"model.py", "README.md"})
+                self.assertEqual(set(archive.namelist()), {"model.py", "README.md", "LICENSE"})
+                self.assertEqual(archive.read("LICENSE"), license_bytes)
                 archive.extractall(Path(directory) / "extracted")
             predict = load_predict(Path(directory) / "extracted/model.py")
             self.assertEqual(predict(self.target), 0.5)
