@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use these baselines in your research, please cite this repository."
+type: software
+title: "PAIEC Predictor Baselines"
+authors:
+  - family-names: Truong
+    given-names: Sang
+  - family-names: Salaudeen
+    given-names: Wale
+  - family-names: Truong
+    given-names: Nhi
+  - family-names: Wang
+    given-names: Serena
+  - family-names: Wang
+    given-names: Angelina
+  - family-names: Guerdan
+    given-names: Luke
+  - family-names: Xiao
+    given-names: Ziang
+  - family-names: Xie
+    given-names: Xing
+  - family-names: Haber
+    given-names: Nick
+  - family-names: Koyejo
+    given-names: Sanmi
+repository-code: "https://github.com/aims-foundations/paiec_baseline"
+url: "https://github.com/aims-foundations/paiec_baseline"
+license: MIT

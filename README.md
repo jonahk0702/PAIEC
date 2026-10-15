@@ -91,6 +91,22 @@ git diff --cached
 python tools/check_public_source.py
 ```
 
+## Citation
+
+If you use these baselines in your research, please cite this repository:
+
+```bibtex
+@misc{paiec_baselines_2026,
+  author = {Truong, Sang and Salaudeen, Wale and Truong, Nhi and
+            Wang, Serena and Wang, Angelina and Guerdan, Luke and
+            Xiao, Ziang and Xie, Xing and Haber, Nick and Koyejo, Sanmi},
+  title = {{PAIEC} Predictor Baselines},
+  year = {2026},
+  howpublished = {GitHub repository},
+  url = {https://github.com/aims-foundations/paiec_baseline}
+}
+```
+
 ## License
 
 The source code and documentation are licensed under the [MIT License](LICENSE).
