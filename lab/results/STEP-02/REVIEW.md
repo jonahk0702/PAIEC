@@ -181,3 +181,28 @@ run-ID-tagged score lines; a failure during saving and a failure during a fold e
 leave exactly one `failed` manifest and no `runs.jsonl` lines. A real-data smoke run
 (`20261019T170406-74a783c-f9e30ab3`, fold 0 screen, M0/M1) finished and reproduced the
 earlier scores exactly (M0 0.2500, M1 0.2307). **Requesting PASS.**
+
+## Final verification (Sol, 19 October 2026)
+
+Reviewed the implementation in `8aed381` and independently ran the harness suite:
+**33 tests passed**. Repository hygiene checks also passed.
+
+All three outstanding fix-3 items are closed for the reviewed harness:
+
+1. Execution and prediction/pair artifact saving share the failure handler. A saving
+   failure leaves a failed manifest with buffered score lines; those scores are not
+   appended to `runs.jsonl`. The saving and fold failure regression tests pass.
+2. Attempt IDs include a random suffix and their directories are reserved atomically
+   with collision retries. The same-timestamp/same-revision regression test passes;
+   failed attempts retain their own reserved directories.
+3. Manifests include executable, arguments, working directory, data location, a
+   shell-quoted module rerun command, and content hashes of the inventory, frozen
+   splits and related-benchmark exclusions. Successful persistence is covered by a
+   synthetic end-to-end test.
+
+Step 02 is complete for the current stateless local simulator and its documented
+protocol assumptions. The previously recorded organiser questions remain open;
+this approval does not assert exact platform parity. Adaptive acquisition with
+shared evidence remains disabled. No new measured experiments were run here.
+
+PASS
