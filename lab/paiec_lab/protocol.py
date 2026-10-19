@@ -95,6 +95,12 @@ def evidence(pairs, i, n, cross_pair=False):
 def acquire(pairs, predictor=None, policy=None, mode="interleaved", cross_pair=False,
             max_labels=MAX_LABELS):
     """Fill pair.acquired for every pair. policy=None is the official random default."""
+    if policy is not None and cross_pair:
+        # The platform's evidence chronology across pairs is unconfirmed (Discord question).
+        # A policy that sees other pairs' labels beyond the budget prefixes that evaluate()
+        # later supplies would use evidence the scored predictions never get.
+        raise NotImplementedError("adaptive acquisition with cross_pair=True is undefined "
+                                  "until the evidence schedule is confirmed")
     for p in pairs:
         p.acquired = []
     if policy is None:
@@ -152,6 +158,7 @@ def evaluate(pairs, predictor, budgets=BUDGETS, cross_pair=False):
         ybar = np.array([p.trials[it].mean() for it in p.eval_items])
         k = np.array([len(p.trials[it]) for it in p.eval_items], dtype=float)
         row = {"benchmark": p.bench.name, "subject_id": p.subject_id,
+               "eval_items": list(p.eval_items),
                "n_eval_items": len(p.eval_items), "n_eval_resp": int(k.sum()),
                "n_acquired": len(p.acquired), "preds": {}}
         for n in budgets:

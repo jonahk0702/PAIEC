@@ -1,0 +1,57 @@
+{
+ "note": "Benchmarks that share >=1 normalised item text (len>=30) or a name family. A fold's training excludes any benchmark related to one of its test benchmarks. Built 19 Oct from results/STEP-02/overlap_audit.json; splits.json unchanged.",
+ "related": [
+  [
+   "adaptivestep",
+   "felm"
+  ],
+  [
+   "adaptivestep",
+   "prox"
+  ],
+  [
+   "bbq",
+   "helm_bbq"
+  ],
+  [
+   "felm",
+   "ikp"
+  ],
+  [
+   "felm",
+   "prox"
+  ],
+  [
+   "igakuqa",
+   "igakuqa119"
+  ],
+  [
+   "ikp",
+   "pku_saferlhf"
+  ],
+  [
+   "multi_swebench",
+   "swepolybench"
+  ],
+  [
+   "swe_rebench",
+   "swe_smith"
+  ],
+  [
+   "swe_rebench",
+   "swebench_live"
+  ],
+  [
+   "swe_rebench",
+   "swepolybench"
+  ],
+  [
+   "swe_smith",
+   "swebench_live"
+  ],
+  [
+   "swebench_live",
+   "swepolybench"
+  ]
+ ]
+}

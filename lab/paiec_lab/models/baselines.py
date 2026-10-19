@@ -59,18 +59,24 @@ class M2:
         self.a = self.b = 1.0
 
     def fit(self, train_benchmarks):
-        ps = data.pair_stats()
+        ps = data.pair_stats(train_benchmarks)
         ps = ps[ps.benchmark.isin(set(train_benchmarks)) & (ps.n_items >= self.min_items)]
+        if ps.empty:
+            raise ValueError("M2 requires at least one eligible training pair")
         # Same pair cap per benchmark as evaluation, so alignment_faking (4,278 pairs) and
         # sib200 (3,341) don't set the prior on their own.
-        ps = (ps.groupby("benchmark", group_keys=False)
-                .apply(lambda g: g.sample(min(len(g), self.max_pairs), random_state=0)))
+        ps = ps.loc[np.concatenate([g.sample(min(len(g), self.max_pairs), random_state=0).index
+                                    for _, g in ps.groupby("benchmark")])]
         acc = (ps.n_correct / ps.n_resp).to_numpy()
         m, v = float(acc.mean()), float(acc.var())
         strength = m * (1 - m) / v - 1 if v > 0 else 2.0
         strength = max(strength, 1e-3)
-        self.a, self.b = m * strength, (1 - m) * strength
+        # An all-zero/all-one training fold must still yield a proper Beta prior.
+        self.a, self.b = max(m * strength, 1e-6), max((1 - m) * strength, 1e-6)
         return self
+
+    def params(self):
+        return {"a": self.a, "b": self.b}
 
     def predict(self, inp, labeled):
         k, n = matching_labels(inp, labeled)

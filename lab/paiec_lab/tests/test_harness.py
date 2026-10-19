@@ -191,3 +191,103 @@ def test_frozen_splits_valid():
         assert not folds[a] & lock
         for b in range(a + 1, len(folds)):
             assert not folds[a] & folds[b]
+
+
+def test_pair_stats_reads_only_requested_training_tables(monkeypatch):
+    seen = []
+
+    def table(bench, name, columns=None):
+        seen.append(bench)
+        assert bench == "train", "A held-out table was read during fitting"
+        return pd.DataFrame({"subject_id": ["s", "s"], "item_id": ["a", "b"],
+                             "response": [0, 1]})
+
+    monkeypatch.setattr(data, "_table", table)
+    result = data.pair_stats(["train", "train"])
+    assert seen == ["train"]
+    assert result.iloc[0].n_correct == 1
+    assert result.iloc[0].n_items == 2
+
+
+@pytest.mark.parametrize("outcome", [0, 1])
+def test_m2_extreme_training_fold_has_finite_prior(monkeypatch, outcome):
+    def stats(benchmarks):
+        assert benchmarks == ["train"]
+        return pd.DataFrame({"benchmark": ["train"], "n_items": [100],
+                             "n_resp": [100], "n_correct": [100 * outcome]})
+
+    monkeypatch.setattr(data, "pair_stats", stats)
+    model = M2().fit(["train"])
+    assert model.a > 0 and model.b > 0
+    assert 0 < model.predict([{}, {"benchmark_id": "b"}], []) < 1
+
+
+def test_m2_rejects_empty_training_fold(monkeypatch):
+    monkeypatch.setattr(data, "pair_stats", lambda benches: pd.DataFrame(
+        columns=["benchmark", "n_items", "n_resp", "n_correct"]))
+    with pytest.raises(ValueError, match="eligible training pair"):
+        M2().fit([])
+
+
+def test_structured_features_are_json():
+    features = {"flags": [True, None], "counts": np.array([1, 2])}
+    assert json.loads(data._features(features)) == {"flags": [True, None], "counts": [1, 2]}
+    assert data._features('{"ready": true}') == '{"ready": true}'
+    assert data._features(None) == ""
+
+
+def test_record_rejects_misaligned_comparisons_before_writing(monkeypatch, tmp_path):
+    from paiec_lab import run
+
+    monkeypatch.setattr(run, "RESULTS", str(tmp_path))
+    a = {"benchmark": "bench", "subject_id": "s1"}
+    b = {"benchmark": "bench", "subject_id": "s2"}
+    with pytest.raises(ValueError, match="Unaligned pairs"):
+        run.record("test", "test", {"M1": [a, b], "M2": [b, a]}, "M1", 0, {}, 0)
+    assert not (tmp_path / "runs.jsonl").exists()
+
+
+def test_freeze_refuses_to_replace_existing_split(monkeypatch, tmp_path):
+    path = tmp_path / "splits.json"
+    path.write_text("original")
+    monkeypatch.setattr(splits, "SPLITS", str(path))
+    with pytest.raises(RuntimeError, match="frozen"):
+        splits.freeze()
+    assert path.read_text() == "original"
+
+
+def test_corrupt_split_hash_rejected(monkeypatch, tmp_path):
+    path = tmp_path / "splits.json"
+    path.write_text(json.dumps({"lockbox": [], "sha256": "wrong"}))
+    monkeypatch.setattr(splits, "SPLITS", str(path))
+    with pytest.raises(ValueError, match="edited by hand"):
+        splits.load()
+
+
+def test_related_benchmarks_dropped_from_training(monkeypatch):
+    s = {"lockbox": ["L"], "screen": ["t1"],
+         "folds": {"0": ["t1", "t2"], "1": ["r1", "x1"], "2": ["r2", "x2"]}}
+    monkeypatch.setattr(splits, "related_pairs", lambda: [("t2", "r1"), ("r2", "t1"), ("x1", "x2")])
+    train, test = splits.fold_benchmarks(s, 0)
+    assert test == ["t1", "t2"]
+    assert train == ["x1", "x2"]  # r1, r2 related to fold-0 test; x1~x2 relation is irrelevant here
+    train_s, test_s = splits.fold_benchmarks(s, 0, screen_only=True)
+    assert test_s == ["t1"] and train_s == ["x1", "x2"]  # blocks against the whole fold, not just screen
+
+
+def test_committed_related_list_loads():
+    pairs = splits.related_pairs()
+    assert all(len(p) == 2 for p in pairs)
+
+
+def test_adaptive_cross_pair_acquisition_is_blocked():
+    pairs, _ = protocol.make_pairs(toy_bench(), max_pairs=None)
+    with pytest.raises(NotImplementedError):
+        protocol.acquire(pairs, predictor=M0(), policy=lambda *a: True, cross_pair=True)
+
+
+def test_evaluate_keeps_item_ids_aligned():
+    pairs = pairs_for(toy_bench())
+    row = protocol.evaluate(pairs, M0())[0]
+    assert row["eval_items"] == pairs[0].eval_items
+    assert len(row["preds"][0]) == len(row["eval_items"]) == len(row["ybar"])

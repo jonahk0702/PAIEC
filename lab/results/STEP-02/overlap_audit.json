@@ -1,0 +1,113 @@
+{
+ "name_families": {
+  "bbq": [
+   "bbq",
+   "helm_bbq"
+  ],
+  "igakuqa": [
+   "igakuqa",
+   "igakuqa119"
+  ]
+ },
+ "shared_items": [
+  {
+   "a": "adaptivestep",
+   "b": "prox",
+   "n": 1814,
+   "where": [
+    "f4",
+    "f3"
+   ]
+  },
+  {
+   "a": "felm",
+   "b": "prox",
+   "n": 214,
+   "where": [
+    "f4",
+    "f3"
+   ]
+  },
+  {
+   "a": "adaptivestep",
+   "b": "felm",
+   "n": 214,
+   "where": [
+    "f4",
+    "f4"
+   ]
+  },
+  {
+   "a": "swe_rebench",
+   "b": "swebench_live",
+   "n": 91,
+   "where": [
+    "f2",
+    "f1"
+   ]
+  },
+  {
+   "a": "swe_rebench",
+   "b": "swe_smith",
+   "n": 39,
+   "where": [
+    "f2",
+    "f0"
+   ]
+  },
+  {
+   "a": "multi_swebench",
+   "b": "swepolybench",
+   "n": 14,
+   "where": [
+    "f1",
+    "f0"
+   ]
+  },
+  {
+   "a": "swebench_live",
+   "b": "swepolybench",
+   "n": 13,
+   "where": [
+    "f1",
+    "f0"
+   ]
+  },
+  {
+   "a": "swe_smith",
+   "b": "swebench_live",
+   "n": 11,
+   "where": [
+    "f0",
+    "f1"
+   ]
+  },
+  {
+   "a": "felm",
+   "b": "ikp",
+   "n": 3,
+   "where": [
+    "f4",
+    "f3"
+   ]
+  },
+  {
+   "a": "swe_rebench",
+   "b": "swepolybench",
+   "n": 1,
+   "where": [
+    "f2",
+    "f0"
+   ]
+  },
+  {
+   "a": "ikp",
+   "b": "pku_saferlhf",
+   "n": 1,
+   "where": [
+    "f3",
+    "f2"
+   ]
+  }
+ ]
+}

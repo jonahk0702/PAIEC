@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import time
 
 import numpy as np
@@ -32,9 +33,21 @@ def git_sha():
         return "unknown"
 
 
+def git_state():
+    """Full revision plus whether tracked code differed from it when the run started."""
+    try:
+        full = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=data.LAB, text=True).strip()
+        dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"],
+                                        cwd=data.LAB, text=True).strip()
+        return {"revision": full, "dirty": bool(dirty), "dirty_files": dirty.splitlines()}
+    except Exception:
+        return {"revision": "unknown", "dirty": None, "dirty_files": []}
+
+
 def run_fold(model_names, fold, screen, cross_pair, max_pairs, eval_cap, sp):
     train, test = splits.fold_benchmarks(sp, fold, screen_only=screen)
     models = {m: MODELS[m]().fit(train) for m in model_names}
+    params = {m: (model.params() if hasattr(model, "params") else {}) for m, model in models.items()}
     rows = {m: [] for m in model_names}
     excluded = 0
     for bench in test:
@@ -48,13 +61,22 @@ def run_fold(model_names, fold, screen, cross_pair, max_pairs, eval_cap, sp):
         protocol.acquire(pairs)  # official random default; identical for every model
         for m, model in models.items():
             rows[m] += protocol.evaluate(pairs, model, cross_pair=cross_pair)
-    return rows, {"train": len(train), "test": len(test), "excluded_small_pairs": excluded}
+    return rows, {"train": len(train), "test": len(test), "excluded_small_pairs": excluded,
+                  "fitted": params, "train_benchmarks": train, "test_benchmarks": test}
 
 
-def record(step, card, rows_by_model, comparator, fold_label, extra, wall):
+def record(step, card, rows_by_model, comparator, fold_label, extra, wall, run_id=None):
     out_lines, sha = [], git_sha()
     os.makedirs(RESULTS, exist_ok=True)
     comp = rows_by_model.get(comparator)
+    if comp is not None:
+        expected = [(r["benchmark"], r["subject_id"]) for r in comp]
+        if len(set(expected)) != len(expected):
+            raise ValueError("Duplicate comparator pairs; check repeated folds")
+        for m, rows in rows_by_model.items():
+            actual = [(r["benchmark"], r["subject_id"]) for r in rows]
+            if actual != expected:
+                raise ValueError(f"Unaligned pairs for {m} vs {comparator}; cannot compute paired gain")
     for m, rows in rows_by_model.items():
         if not rows:
             continue
@@ -63,7 +85,7 @@ def record(step, card, rows_by_model, comparator, fold_label, extra, wall):
                 "alc": s["alc"], **{f"b{n}": s[f"b{n}"] for n in protocol.BUDGETS},
                 "alc_bench": s["alc_bench"], "ece": s["ece"], "gain": None, "ci_lo": None,
                 "ci_hi": None, "n_pairs": s["n_pairs"], "n_benchmarks": s["n_benchmarks"],
-                "wall_s": round(wall, 1), "git_sha": sha, **extra}
+                "wall_s": round(wall, 1), "git_sha": sha, "run_id": run_id, **extra}
         if comp is not None and m != comparator:
             g, lo, hi = metrics.paired_bootstrap([r["alc"] for r in comp], [r["alc"] for r in rows],
                                                  [r["benchmark"] for r in rows])
@@ -75,14 +97,23 @@ def record(step, card, rows_by_model, comparator, fold_label, extra, wall):
     return out_lines
 
 
-def save_pairs(step, rows_by_model, tag):
-    d = os.path.join(ARTIFACTS, f"STEP-{step}")
-    os.makedirs(d, exist_ok=True)
-    flat = [{k: v for k, v in r.items() if k not in ("preds", "ybar", "k")} | {"model": m}
-            for m, rows in rows_by_model.items() for r in rows]
-    path = os.path.join(d, f"pairs_{tag}.parquet")
-    pd.DataFrame(flat).to_parquet(path)
-    return path
+def save_run(step, run_id, rows_by_model, manifest):
+    """Per-item predictions for every model and budget, plus the run manifest. Never overwrites."""
+    d = os.path.join(ARTIFACTS, f"STEP-{step}", run_id)
+    os.makedirs(d, exist_ok=False)
+    items = []
+    for m, rows in rows_by_model.items():
+        for r in rows:
+            for n, preds in r["preds"].items():
+                items += [{"model": m, "benchmark": r["benchmark"], "subject_id": r["subject_id"],
+                           "item_id": it, "budget": n, "p": float(p), "ybar": float(y), "k": int(k)}
+                          for it, p, y, k in zip(r["eval_items"], preds, r["ybar"], r["k"])]
+    pd.DataFrame(items).to_parquet(os.path.join(d, "predictions.parquet"))
+    pairs = [{k: v for k, v in r.items() if k not in ("preds", "ybar", "k", "eval_items")} | {"model": m}
+             for m, rows in rows_by_model.items() for r in rows]
+    pd.DataFrame(pairs).to_parquet(os.path.join(d, "pairs.parquet"))
+    json.dump(manifest, open(os.path.join(d, "manifest.json"), "w"), indent=1, default=str)
+    return d
 
 
 def trace(bench_name, n_subjects=2):
@@ -138,21 +169,42 @@ def main():
         print(trace(a.trace))
         return
     sp = splits.load()
-    pooled = {m: [] for m in a.models}
-    t_all = time.time()
-    for f in a.folds:
-        t0 = time.time()
-        rows, info = run_fold(a.models, f, a.screen, a.cross_pair, a.max_pairs, a.eval_cap, sp)
-        extra = {"screen": a.screen, "cross_pair": a.cross_pair, "split_sha": sp["sha256"][:12], **info}
-        for line in record(a.step, a.card, rows, a.comparator, f, extra, time.time() - t0):
-            print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
-        for m in a.models:
-            pooled[m] += rows[m]
-    if len(a.folds) > 1:
-        extra = {"screen": a.screen, "cross_pair": a.cross_pair, "split_sha": sp["sha256"][:12]}
-        for line in record(a.step, a.card, pooled, a.comparator, "pooled", extra, time.time() - t_all):
-            print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
-    print(save_pairs(a.step, pooled, f"{'screen' if a.screen else 'full'}_{'x' if a.cross_pair else 'o'}"))
+    state = git_state()
+    run_id = time.strftime("%Y%m%dT%H%M%S") + "-" + git_sha()
+    inv = json.load(open(os.path.join(data.DATA, "inventory.json")))
+    manifest = {"run_id": run_id, "step": a.step, "card": a.card, "command": " ".join(sys.argv),
+                "code": state, "data_revision": inv.get("revision"), "split_sha256": sp["sha256"],
+                "related_benchmarks": splits.RELATED, "models": a.models, "comparator": a.comparator,
+                "protocol": {"min_items": 80, "max_pairs": a.max_pairs, "eval_cap": a.eval_cap,
+                             "acquisition": "random default", "cross_pair": a.cross_pair},
+                "folds": {}, "status": "started"}
+    try:
+        pooled = {m: [] for m in a.models}
+        t_all = time.time()
+        for f in a.folds:
+            t0 = time.time()
+            rows, info = run_fold(a.models, f, a.screen, a.cross_pair, a.max_pairs, a.eval_cap, sp)
+            manifest["folds"][str(f)] = info
+            extra = {"screen": a.screen, "cross_pair": a.cross_pair, "split_sha": sp["sha256"][:12],
+                     "train": info["train"], "test": info["test"],
+                     "excluded_small_pairs": info["excluded_small_pairs"]}
+            for line in record(a.step, a.card, rows, a.comparator, f, extra, time.time() - t0, run_id):
+                print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
+            for m in a.models:
+                pooled[m] += rows[m]
+        if len(a.folds) > 1:
+            extra = {"screen": a.screen, "cross_pair": a.cross_pair, "split_sha": sp["sha256"][:12]}
+            for line in record(a.step, a.card, pooled, a.comparator, "pooled", extra, time.time() - t_all,
+                               run_id):
+                print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
+    except Exception as e:  # record failed attempts too (SPEC §8), then re-raise
+        manifest.update(status="failed", error=f"{type(e).__name__}: {e}")
+        d = os.path.join(ARTIFACTS, f"STEP-{a.step}", run_id + "-failed")
+        os.makedirs(d, exist_ok=True)
+        json.dump(manifest, open(os.path.join(d, "manifest.json"), "w"), indent=1, default=str)
+        raise
+    manifest.update(status="finished", wall_s=round(time.time() - t_all, 1))
+    print(save_run(a.step, run_id, pooled, manifest))
 
 
 if __name__ == "__main__":

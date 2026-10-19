@@ -24,6 +24,14 @@ def _s(value):
     return str(value)
 
 
+def _features(value):
+    """Preserve supplied JSON strings; serialize structured parquet values as JSON."""
+    if isinstance(value, (dict, list, tuple, np.ndarray)):
+        return json.dumps(value, default=lambda x: x.tolist() if isinstance(x, np.ndarray)
+                          else x.item() if isinstance(x, np.generic) else str(x))
+    return _s(value)
+
+
 def benchmark_hash(bench):
     return hashlib.sha1(bench.encode()).hexdigest()[:12]
 
@@ -82,7 +90,7 @@ def load_benchmark(bench):
     subjects = {str(row["subject_id"]): {k: _s(row.get(k)) for k in SUBJECT_KEYS}
                 for row in s.to_dict("records")}
     it = _table(bench, "items", ["item_id", "content", "item_features"])
-    items = {str(i): (_s(c), _s(f)) for i, c, f in
+    items = {str(i): (_s(c), _features(f)) for i, c, f in
              zip(it.item_id.to_numpy(), it.content.to_numpy(), it.item_features.to_numpy())}
     b = _table(bench, "benchmarks")
     if b is not None and len(b):
@@ -91,13 +99,14 @@ def load_benchmark(bench):
     return BenchData(bench, subjects, items, r, meta)
 
 
-def pair_stats():
-    """Per (benchmark, subject): distinct items, responses, correct. Cached; used by fitting."""
-    path = os.path.join(CACHE, "pair_stats.parquet")
-    if os.path.exists(path):
-        return pd.read_parquet(path)
+def pair_stats(benchmarks):
+    """Training-only pair counts. Never scan held-out tables or reuse a global cache.
+
+    Counts are cheap relative to fitting; recomputing also avoids stale cached
+    labels after a dataset revision or PAIEC_DATA change.
+    """
     rows = []
-    for bench in eligible_benchmarks():
+    for bench in sorted(set(benchmarks)):
         r = _table(bench, "responses", ["subject_id", "item_id", "response"])
         if r is None:
             continue
@@ -109,10 +118,9 @@ def pair_stats():
                            "n_correct": g.response.sum()}).reset_index()
         df["benchmark"] = bench
         rows.append(df)
-    out = pd.concat(rows, ignore_index=True)
-    os.makedirs(CACHE, exist_ok=True)
-    out.to_parquet(path)
-    return out
+    if not rows:
+        return pd.DataFrame(columns=["subject_id", "n_items", "n_resp", "n_correct", "benchmark"])
+    return pd.concat(rows, ignore_index=True)
 
 
 def benchmark_summary():

@@ -53,8 +53,8 @@ def make_splits(summary, lockbox_frac=0.10, n_folds=5, n_screen=24):
     return out
 
 
-def freeze(force=False):
-    if os.path.exists(SPLITS) and not force:
+def freeze():
+    if os.path.exists(SPLITS):
         raise RuntimeError(f"{SPLITS} exists and is frozen; never regenerate it")
     out = make_splits(data.benchmark_summary())
     os.makedirs(os.path.dirname(SPLITS), exist_ok=True)
@@ -65,15 +65,31 @@ def freeze(force=False):
 def load():
     s = json.load(open(SPLITS))
     body = {k: v for k, v in s.items() if k != "sha256"}
-    assert hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest() == s["sha256"], \
-        "splits.json was edited by hand"
+    if hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest() != s["sha256"]:
+        raise ValueError("splits.json was edited by hand")
     return s
 
 
+RELATED = os.path.join(data.LAB, "results", "related_benchmarks.json")
+
+
+def related_pairs():
+    """Benchmark pairs sharing items or a name family (step-02 audit)."""
+    if not os.path.exists(RELATED):
+        raise FileNotFoundError(f"{RELATED} missing; run the step-02 overlap audit")
+    return [tuple(p) for p in json.load(open(RELATED))["related"]]
+
+
 def fold_benchmarks(splits, fold, screen_only=False):
-    """(train, test) benchmark lists for a fold. The lockbox is in neither."""
-    test = splits["folds"][str(fold)]
-    if screen_only:
-        test = [b for b in test if b in set(splits["screen"])]
-    train = sorted(b for f, v in splits["folds"].items() if f != str(fold) for b in v)
-    return train, sorted(test)
+    """(train, test) benchmark lists for a fold. The lockbox is in neither.
+
+    Training also drops any benchmark related (shared items or name family) to *any* of
+    the fold's test benchmarks, so duplicated questions never straddle train and test.
+    """
+    fold_test = set(splits["folds"][str(fold)])
+    test = sorted(fold_test & set(splits["screen"])) if screen_only else sorted(fold_test)
+    blocked = {b for a, c in related_pairs() for b, other in ((a, c), (c, a))
+               if other in fold_test}
+    train = sorted(b for f, v in splits["folds"].items() if f != str(fold) for b in v
+                   if b not in blocked)
+    return train, test

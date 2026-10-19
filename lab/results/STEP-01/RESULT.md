@@ -20,8 +20,8 @@ fallback.** The gain comes from budgets 1–3: M1 jumps to 0 or 1 after one labe
 
 ## Verdict
 Harness: **ready for review (step 02).** M2: **advance** as the fallback and the
-comparator for step 03. M2's B0 (0.257) is slightly worse than 0.5. A constant prior
-can't beat 0.5 at budget 0 when test base rates vary. That is the job of the item- and
+comparator for step 03. M2's B0 (0.257) is slightly worse than 0.5. (Correction from the step-02 review: a constant prior *can* beat 0.5 at budget 0 if its
+learned base rate transfers; on this screen it didn't.) That is the job of the item- and
 subject-aware priors in steps 03–04.
 
 ## Deviations and notes
