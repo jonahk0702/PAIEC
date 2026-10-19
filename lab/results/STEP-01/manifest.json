@@ -1,0 +1,51 @@
+{
+ "step": "01",
+ "cards": [
+  "DG02"
+ ],
+ "data_revision": "54074453da7b9911be0f48e4c560be547bc84d21",
+ "split_sha256": "08d7c32d5ae8998993bcb6b78112aed8aefa1f7c2c636ccced2784db87b6f8e5",
+ "lockbox": 16,
+ "folds": {
+  "0": 28,
+  "1": 29,
+  "2": 28,
+  "3": 31,
+  "4": 27
+ },
+ "screen": 24,
+ "configs": [
+  {
+   "model": "M0"
+  },
+  {
+   "model": "M1",
+   "source": "empirical_mean/model.py unchanged"
+  },
+  {
+   "model": "M2",
+   "fit": "moments on training pair accuracies, <=20 pairs per benchmark, seed 0"
+  }
+ ],
+ "protocol": {
+  "min_items": 80,
+  "max_pairs": 20,
+  "eval_cap": 400,
+  "acquisition": "random default",
+  "cross_pair": false
+ },
+ "seeds": {
+  "lockbox": 1,
+  "folds": 0,
+  "screen": 2,
+  "pair_cap": 3,
+  "bootstrap": 0
+ },
+ "tests": "17 passed",
+ "python": "3.14.4",
+ "artifacts": {
+  "pairs": "lab/artifacts/STEP-01/pairs_screen_o.parquet",
+  "cache": "lab/artifacts/cache/"
+ },
+ "runner": "Opus, local Mac"
+}

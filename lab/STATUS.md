@@ -7,8 +7,8 @@ Qwen: do the **first row whose status is `todo`**, unless a row above it is
 | Step | File | Status | Date | Note |
 | --- | --- | --- | --- | --- |
 | 00 | steps/00-setup.md | todo | | Jonah does `hf auth login` |
-| 01 | steps/01-harness.md | todo | | |
-| 02 | steps/02-review-gate.md | todo | | Set to `waiting-review` and stop |
+| 01 | steps/01-harness.md | done | 19 Oct | Written by Opus; 17 tests pass; M2 beats M1 |
+| 02 | steps/02-review-gate.md | waiting-review | 19 Oct | Sol reviews the harness code |
 | 03 | steps/03-baselines.md | todo | | Hand zips to Jonah |
 | 04 | steps/04-rasch-update.md | todo | | |
 | 05 | steps/05-mcni.md | todo | | |

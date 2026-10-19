@@ -60,7 +60,8 @@ Test benchmarks are **never seen in training** (benchmark-level cold start).
 6. **Cross-pair mode** (switch): `off` = `labeled` holds only this pair's labels; `on` =
    also other sampled pairs' first-n labels on the same benchmark. Default `off`; report
    `on` only where a step asks. Pair order for `on`: interleaved round-robin.
-7. Predict once per distinct evaluation item; repeats reuse the prediction.
+7. Predict once per distinct evaluation item; repeats reuse the prediction. Evaluation
+   items are capped at 400 per pair (seeded) for speed.
 8. **Never** let an evaluation-pool label reach `labeled` for that subject.
 
 ## 5. Metric
@@ -76,7 +77,8 @@ Test benchmarks are **never seen in training** (benchmark-level cold start).
 ## 6. Shared models
 - **M0** constant 0.5. **M1** official empirical mean (`empirical_mean/model.py`).
 - **M2** Beta shrinkage: p = (a + k)/(a + b + n), with (a, b) fit by moments on
-  training-fold pair accuracies.
+  training-fold pair accuracies, **at most 20 pairs per training benchmark** (otherwise
+  two giant benchmarks set the prior). Balance every fit by benchmark like this.
 - **M3** L2 logistic regression on subject features + item embedding (step 03 defines
   them).
 - **M4** amortized Rasch: η0 = h(x_s) + r_s − g(e_i), with r_s a shrunk per-name
