@@ -9,11 +9,14 @@ so gains are paired.
 """
 
 import argparse
+import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -66,8 +69,8 @@ def run_fold(model_names, fold, screen, cross_pair, max_pairs, eval_cap, sp):
 
 
 def record(step, card, rows_by_model, comparator, fold_label, extra, wall, run_id=None):
+    """Score lines for runs.jsonl. Nothing is written here; see attempt()."""
     out_lines, sha = [], git_sha()
-    os.makedirs(RESULTS, exist_ok=True)
     comp = rows_by_model.get(comparator)
     if comp is not None:
         expected = [(r["benchmark"], r["subject_id"]) for r in comp]
@@ -91,16 +94,38 @@ def record(step, card, rows_by_model, comparator, fold_label, extra, wall, run_i
                                                  [r["benchmark"] for r in rows])
             line.update(gain=g, ci_lo=lo, ci_hi=hi, comparator=comparator)
         out_lines.append(line)
-    with open(os.path.join(RESULTS, "runs.jsonl"), "a") as f:
-        for line in out_lines:
-            f.write(json.dumps(line) + "\n")
     return out_lines
 
 
-def save_run(step, run_id, rows_by_model, manifest):
-    """Per-item predictions for every model and budget, plus the run manifest. Never overwrites."""
-    d = os.path.join(ARTIFACTS, f"STEP-{step}", run_id)
-    os.makedirs(d, exist_ok=False)
+def file_sha256(path):
+    try:
+        return hashlib.sha256(open(path, "rb").read()).hexdigest()
+    except OSError:
+        return None
+
+
+def new_attempt_dir(step):
+    """Atomically reserve a unique attempt directory (random suffix; never reused)."""
+    base = os.path.join(ARTIFACTS, f"STEP-{step}")
+    os.makedirs(base, exist_ok=True)
+    while True:
+        run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{git_sha()}-{uuid.uuid4().hex[:8]}"
+        d = os.path.join(base, run_id)
+        try:
+            os.makedirs(d, exist_ok=False)
+            return run_id, d
+        except FileExistsError:
+            continue
+
+
+def write_manifest(d, manifest):
+    tmp = os.path.join(d, "manifest.json.tmp")
+    json.dump(manifest, open(tmp, "w"), indent=1, default=str)
+    os.replace(tmp, os.path.join(d, "manifest.json"))
+
+
+def save_run(d, rows_by_model):
+    """Per-item predictions for every model and budget, plus pair scores, into attempt dir d."""
     items = []
     for m, rows in rows_by_model.items():
         for r in rows:
@@ -112,7 +137,6 @@ def save_run(step, run_id, rows_by_model, manifest):
     pairs = [{k: v for k, v in r.items() if k not in ("preds", "ybar", "k", "eval_items")} | {"model": m}
              for m, rows in rows_by_model.items() for r in rows]
     pd.DataFrame(pairs).to_parquet(os.path.join(d, "pairs.parquet"))
-    json.dump(manifest, open(os.path.join(d, "manifest.json"), "w"), indent=1, default=str)
     return d
 
 
@@ -168,19 +192,36 @@ def main():
     if a.trace:
         print(trace(a.trace))
         return
-    sp = splits.load()
-    state = git_state()
-    run_id = time.strftime("%Y%m%dT%H%M%S") + "-" + git_sha()
-    inv = json.load(open(os.path.join(data.DATA, "inventory.json")))
-    manifest = {"run_id": run_id, "step": a.step, "card": a.card, "command": " ".join(sys.argv),
-                "code": state, "data_revision": inv.get("revision"), "split_sha256": sp["sha256"],
-                "related_benchmarks": splits.RELATED, "models": a.models, "comparator": a.comparator,
-                "protocol": {"min_items": 80, "max_pairs": a.max_pairs, "eval_cap": a.eval_cap,
-                             "acquisition": "random default", "cross_pair": a.cross_pair},
-                "folds": {}, "status": "started"}
+    attempt(a, sys.argv)
+
+
+def attempt(a, argv):
+    """One recorded attempt. The attempt directory and a `started` manifest exist before any
+    work; any failure, including while saving artifacts, leaves a `failed` manifest; score
+    lines reach runs.jsonl only after every artifact is saved."""
+    run_id, d = new_attempt_dir(a.step)
+    inv_path = os.path.join(data.DATA, "inventory.json")
+    manifest = {
+        "run_id": run_id, "step": a.step, "card": a.card, "status": "started",
+        "command": {"executable": sys.executable, "argv": list(argv), "cwd": os.getcwd(),
+                    "rerun": f"cd {shlex.quote(data.LAB)} && PAIEC_DATA={shlex.quote(data.DATA)} "
+                             + shlex.join([sys.executable, "-m", "paiec_lab.run", *argv[1:]])},
+        "code": git_state(), "env": {"PAIEC_DATA": data.DATA},
+        "inputs": {"inventory_sha256": file_sha256(inv_path),
+                   "splits_sha256": file_sha256(splits.SPLITS),
+                   "related_benchmarks_sha256": file_sha256(splits.RELATED)},
+        "models": a.models, "comparator": a.comparator,
+        "protocol": {"min_items": 80, "max_pairs": a.max_pairs, "eval_cap": a.eval_cap,
+                     "acquisition": "random default", "cross_pair": a.cross_pair},
+        "folds": {}}
+    write_manifest(d, manifest)
+    lines = []
+    t_all = time.time()
     try:
+        manifest["data_revision"] = json.load(open(inv_path)).get("revision")
+        sp = splits.load()
+        manifest["split_sha256"] = sp["sha256"]
         pooled = {m: [] for m in a.models}
-        t_all = time.time()
         for f in a.folds:
             t0 = time.time()
             rows, info = run_fold(a.models, f, a.screen, a.cross_pair, a.max_pairs, a.eval_cap, sp)
@@ -188,23 +229,29 @@ def main():
             extra = {"screen": a.screen, "cross_pair": a.cross_pair, "split_sha": sp["sha256"][:12],
                      "train": info["train"], "test": info["test"],
                      "excluded_small_pairs": info["excluded_small_pairs"]}
-            for line in record(a.step, a.card, rows, a.comparator, f, extra, time.time() - t0, run_id):
-                print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
+            lines += record(a.step, a.card, rows, a.comparator, f, extra, time.time() - t0, run_id)
             for m in a.models:
                 pooled[m] += rows[m]
         if len(a.folds) > 1:
             extra = {"screen": a.screen, "cross_pair": a.cross_pair, "split_sha": sp["sha256"][:12]}
-            for line in record(a.step, a.card, pooled, a.comparator, "pooled", extra, time.time() - t_all,
-                               run_id):
-                print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
-    except Exception as e:  # record failed attempts too (SPEC §8), then re-raise
-        manifest.update(status="failed", error=f"{type(e).__name__}: {e}")
-        d = os.path.join(ARTIFACTS, f"STEP-{a.step}", run_id + "-failed")
-        os.makedirs(d, exist_ok=True)
-        json.dump(manifest, open(os.path.join(d, "manifest.json"), "w"), indent=1, default=str)
+            lines += record(a.step, a.card, pooled, a.comparator, "pooled", extra,
+                            time.time() - t_all, run_id)
+        save_run(d, pooled)
+    except BaseException as e:  # SPEC §8: failed attempts are recorded, then re-raised
+        manifest.update(status="failed", error=f"{type(e).__name__}: {e}",
+                        unpersisted_lines=lines, wall_s=round(time.time() - t_all, 1))
+        write_manifest(d, manifest)
         raise
     manifest.update(status="finished", wall_s=round(time.time() - t_all, 1))
-    print(save_run(a.step, run_id, pooled, manifest))
+    write_manifest(d, manifest)
+    os.makedirs(RESULTS, exist_ok=True)
+    with open(os.path.join(RESULTS, "runs.jsonl"), "a") as fh:
+        for line in lines:
+            fh.write(json.dumps(line) + "\n")
+    for line in lines:
+        print({k: line[k] for k in ("variant", "fold", "alc", "b0", "b31", "gain", "ci_lo", "ci_hi", "n_pairs")})
+    print(d)
+    return run_id, d
 
 
 if __name__ == "__main__":

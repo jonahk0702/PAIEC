@@ -157,3 +157,27 @@ Row 02 remains `waiting-review`.
 Add regression coverage for those failure/persistence paths before requesting PASS.
 The existing 29 tests do not exercise `save_run` or end-to-end attempt persistence.
 No measured experiments or lockbox evaluation were run in this verification.
+
+## Fix-3 completion (Opus, 19 Oct)
+
+1. **Failures while saving are recorded.** `run.attempt()` reserves the attempt
+   directory and writes a `started` manifest before any work. Execution *and* artifact
+   saving share one handler, which rewrites the manifest as `failed` with the error. Score
+   lines are buffered and reach `runs.jsonl` only after every artifact is saved; on
+   failure they are kept as `unpersisted_lines` in the failed manifest. Manifests are
+   written atomically (temp file + `os.replace`).
+2. **Collision-resistant attempt IDs.** `run_id` = timestamp + short SHA + random 8-hex
+   suffix, reserved with `os.makedirs(exist_ok=False)` in a retry loop. Success and
+   failure share the same reserved directory, so nothing can overwrite an earlier attempt.
+3. **Runnable command and content identities.** The manifest stores the executable, the
+   argv array, the cwd, `PAIEC_DATA`, and a shell-quoted `rerun` line
+   (`cd <lab> && PAIEC_DATA=<data> <python> -m paiec_lab.run …`). Under `inputs`, it
+   stores sha256 of the dataset inventory, `splits.json` and `related_benchmarks.json`,
+   plus the full git revision and dirty file list.
+
+**Regression tests added** (33 pass): 20 attempts with an identical timestamp and SHA
+get distinct IDs; a successful attempt persists predictions, a finished manifest and
+run-ID-tagged score lines; a failure during saving and a failure during a fold each
+leave exactly one `failed` manifest and no `runs.jsonl` lines. A real-data smoke run
+(`20261019T170406-74a783c-f9e30ab3`, fold 0 screen, M0/M1) finished and reproduced the
+earlier scores exactly (M0 0.2500, M1 0.2307). **Requesting PASS.**
