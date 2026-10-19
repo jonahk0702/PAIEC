@@ -37,6 +37,9 @@ Test benchmarks are **never seen in training** (benchmark-level cold start).
 ## 3. Splits (frozen once in step 01, committed as `lab/results/splits.json`)
 - **Lockbox:** about 10% of usable benchmarks (seed 1), stratified by first `domain` tag.
   **Never** used before the final step. No exceptions.
+  **Exposure (decided 19 Oct):** `devbench` and `tulu_human_eval` were seen in an early
+  local run. The final step headlines the score on the 14 untouched lockbox benchmarks and
+  reports those two separately (`results/lockbox.json`).
 - **Folds:** the remaining benchmarks go into 5 GroupKFold folds by benchmark (seed 0),
   stratified by domain and size. Test benchmarks of a fold contribute nothing to that
   fold's training: no items, no responses, no fitted statistics.

@@ -1,0 +1,25 @@
+{
+ "decision": "Jonah, 19 Oct 2026: splits.json stays as frozen. The final lockbox score is headlined on the 14 untouched benchmarks; devbench and tulu_human_eval are reported separately, because an early local PyCaret run (before splits.json existed) used them in training/validation.",
+ "untouched": [
+  "advprompter",
+  "exploitgym",
+  "financebench",
+  "haiid",
+  "helm_afr",
+  "imagenet_hard",
+  "judgetuning",
+  "kernelbench",
+  "legal_rag_bench",
+  "medhelm_race_based_med",
+  "mmlu",
+  "proofaug",
+  "sustainable_food",
+  "vl_rewardbench"
+ ],
+ "exposed": [
+  "devbench",
+  "tulu_human_eval"
+ ],
+ "evidence": "thesis AIMS/results/quick-pycaret-2026-10-19/LOCKBOX-EXPOSURE.md",
+ "split_sha256": "08d7c32d5ae8998993bcb6b78112aed8aefa1f7c2c636ccced2784db87b6f8e5"
+}
