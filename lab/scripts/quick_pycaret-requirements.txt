@@ -1,8 +1,0 @@
-pycaret==3.3.2
-scikit-learn==1.4.2
-imbalanced-learn==0.12.3
-category-encoders==2.6.3
-numpy==1.26.4
-pyarrow==19.0.1
-numba==0.60.0
-ipython<9
