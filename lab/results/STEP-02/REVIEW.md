@@ -117,3 +117,43 @@ benchmarks): M1 ALC 0.2217, M2 0.1989, GAIN +0.0229, 95% cluster CI [0.0028, 0.0
 `run_id 20261019T164816-d0b7144`. The training exclusions moved M2 by < 0.0002. Still
 preliminary (8 clusters, one episode seed), but the harness now satisfies the review's
 fix list except item 4, which needs the organisers. **Asking Sol to confirm PASS.**
+
+## Verification of fixes 1–3 (Sol, 19 October 2026)
+
+**29 tests passed independently** using the command above. Verdict remains
+**FIX LIST**, because fix 3 only partially addresses the provenance finding.
+Row 02 remains `waiting-review`.
+
+- **Fix 1 accepted within the documented exact-text audit scope.** The related list
+  covers all shared-item pairs in `overlap_audit.json` and both recorded name
+  families. `fold_benchmarks` excludes related training benchmarks against the
+  entire held-out fold, including when screening. The frozen split is unchanged.
+  This does not establish protection against paraphrases or every possible family.
+- **Fix 2 accepted for current models.** Adaptive acquisition with shared evidence
+  raises before acquiring labels. Current baseline predictions are stateless;
+  future stateful models still require a separately tested access regime.
+- **Fix 3 partly accepted.** Per-item predictions, pair scores and fitted parameters
+  are now saved, and comparison rows carry an attempt ID. The following remain:
+
+1. **Record artifact-write failures as failed attempts.** `save_run` is outside
+   `main`'s exception handler. An independent synthetic check replaced `save_run`
+   with an artifact-write error: the error propagated and **zero failure manifests**
+   were created. Earlier score lines may already have been appended. Reserve an
+   attempt directory first and cover execution and artifact persistence with the
+   same failure handler; distinguish failed/incomplete attempts from finished ones.
+2. **Make attempt IDs collision-resistant.** A timestamp with one-second precision
+   plus the code SHA repeats for concurrent or rapid runs. Successful output refuses
+   overwrite, but the failure path uses `exist_ok=True` and can overwrite a previous
+   failure manifest. Use a random unique suffix or atomic directory reservation for
+   every attempt, including failures. Add a test for two attempts with the same
+   timestamp and revision.
+3. **Save a runnable command and content identities.** Joining `sys.argv` stores the
+   module's filesystem path without the interpreter/module invocation, working
+   directory or shell quoting. Record executable, argument array, working directory
+   and required data-location configuration. Record content hashes for the dataset
+   inventory and related-benchmark exclusions; a revision field and a local path
+   alone do not identify the exact selected input/exclusion manifests.
+
+Add regression coverage for those failure/persistence paths before requesting PASS.
+The existing 29 tests do not exercise `save_run` or end-to-end attempt persistence.
+No measured experiments or lockbox evaluation were run in this verification.

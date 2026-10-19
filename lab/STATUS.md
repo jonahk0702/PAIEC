@@ -8,7 +8,7 @@ Qwen: do the **first row whose status is `todo`**, unless a row above it is
 | --- | --- | --- | --- | --- |
 | 00 | steps/00-setup.md | todo | | Jonah does `hf auth login` |
 | 01 | steps/01-harness.md | done | 19 Oct | Written by Opus; 17 tests pass; M2 beats M1 |
-| 02 | steps/02-review-gate.md | waiting-review | 19 Oct | Fixes 1–3 applied by Opus (29 tests pass, M2 rerun holds); item 4 = Discord questions; Sol to confirm PASS |
+| 02 | steps/02-review-gate.md | waiting-review | 19 Oct | Sol verified 29 tests pass; fixes 1–2 accepted, fix 3 needs failure persistence, unique attempt IDs and reproducible command/input identities; see REVIEW.md |
 | 03 | steps/03-baselines.md | todo | | Hand zips to Jonah |
 | 04 | steps/04-rasch-update.md | todo | | |
 | 05 | steps/05-mcni.md | todo | | |
